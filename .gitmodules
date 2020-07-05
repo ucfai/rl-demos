@@ -1,0 +1,3 @@
+[submodule "AlphaGomoku"]
+	path = AlphaGomoku
+	url = https://github.com/nspeer12/AlphaGomoku
