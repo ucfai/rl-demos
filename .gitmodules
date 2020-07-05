@@ -1,3 +1,6 @@
 [submodule "AlphaGomoku"]
 	path = AlphaGomoku
 	url = https://github.com/nspeer12/AlphaGomoku
+[submodule "PongRL"]
+	path = PongRL
+	url = https://github.com/SageJacob/PongRL
