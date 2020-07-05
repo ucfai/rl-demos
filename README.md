@@ -1,2 +1,2 @@
 # rl-demos
-RL examples and 
+RL examples
