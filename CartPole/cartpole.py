@@ -1,6 +1,8 @@
+import sys
 import gym
 import time
 import numpy as np
+import os
 from gym.envs.classic_control import rendering
 from tqdm import tqdm
 from collections import namedtuple
@@ -21,6 +23,7 @@ input_dim = 80*80
 hidden_dim = 64
 output_dim = 1
 
+MODEL_DIR = os.getcwd() + '/models/'
 
 # keep track of observed states
 Transition = namedtuple('Transition', ('state', 'action', 'next_state', 'reward'))
@@ -48,37 +51,37 @@ class ReplayMemory(object):
 
 
 class DQN(nn.Module):
-	def __init__(self, h, w, outputs):
-		super(DQN, self).__init__()
-		self.conv1 = nn.Conv2d(3, 16, kernel_size=5, stride=2)
-		self.bn1 = nn.BatchNorm2d(16)
-		self.conv2 = nn.Conv2d(16, 32, kernel_size=5, stride=2)
-		self.bn2 = nn.BatchNorm2d(32)
-		self.conv3 = nn.Conv2d(32, 32, kernel_size=5, stride=2)
-		self.bn3 = nn.BatchNorm2d(32)	 
-	
-		# calculate output dimensions of convolutional layer
-		def conv2d_size_out(size, kernel_size = 5, stride = 2):
-		    return (size - (kernel_size - 1) - 1) // stride  + 1
-		
+        def __init__(self, h, w, outputs):
+                super(DQN, self).__init__()
+                self.conv1 = nn.Conv2d(3, 16, kernel_size=5, stride=2)
+                self.bn1 = nn.BatchNorm2d(16)
+                self.conv2 = nn.Conv2d(16, 32, kernel_size=5, stride=2)
+                self.bn2 = nn.BatchNorm2d(32)
+                self.conv3 = nn.Conv2d(32, 32, kernel_size=5, stride=2)
+                self.bn3 = nn.BatchNorm2d(32)    
+        
+                # calculate output dimensions of convolutional layer
+                def conv2d_size_out(size, kernel_size = 5, stride = 2):
+                    return (size - (kernel_size - 1) - 1) // stride  + 1
+                
 
-		convw = conv2d_size_out(conv2d_size_out(conv2d_size_out(w)))
-		convh = conv2d_size_out(conv2d_size_out(conv2d_size_out(h)))
-		linear_input_size = convw * convh * 32
-		self.head = nn.Linear(linear_input_size, outputs)
+                convw = conv2d_size_out(conv2d_size_out(conv2d_size_out(w)))
+                convh = conv2d_size_out(conv2d_size_out(conv2d_size_out(h)))
+                linear_input_size = convw * convh * 32
+                self.head = nn.Linear(linear_input_size, outputs)
 
-	# feed input data through the NN
-	def forward(self, x):
-		x = F.relu(self.bn1(self.conv1(x)))
-		x = F.relu(self.bn2(self.conv2(x)))
-		x = F.relu(self.bn3(self.conv3(x)))
-		return self.head(x.view(x.size(0), -1))
-	
+        # feed input data through the NN
+        def forward(self, x):
+                x = F.relu(self.bn1(self.conv1(x)))
+                x = F.relu(self.bn2(self.conv2(x)))
+                x = F.relu(self.bn3(self.conv3(x)))
+                return self.head(x.view(x.size(0), -1))
+        
 
 resize  = T.Compose([T.ToPILImage(),
                     T.Resize(40, interpolation=Image.CUBIC),
                     T.ToTensor()])
-	
+        
 
 
 def get_location(screen_width):
@@ -115,81 +118,81 @@ def get_screen():
 
 
 def clean_frame(frame):
-	if frame.all()  == None:
-		return np.zeros(1, 80*80)
-	else:
-		# set background to black
-		frame[frame == 144] = 0
-		frame[frame == 109] = 0
-		
-		# greyscale
-		frame[frame != 0] = 255
-		return frame
-	
+        if frame.all()  == None:
+                return np.zeros(1, 80*80)
+        else:
+                # set background to black
+                frame[frame == 144] = 0
+                frame[frame == 109] = 0
+                
+                # greyscale
+                frame[frame != 0] = 255
+                return frame
+        
 def frame_to_tensor(frame):
-	return torch.from_numpy(frame.astype(np.float32).ravel()).unsqueeze(0)
+        return torch.from_numpy(frame.astype(np.float32).ravel()).unsqueeze(0)
 
 
 def preprocess(frame1, frame2):
-	return frame_to_tensor(clean_frame(frame2)) - frame_to_tensor(clean_frame(frame1))
+        return frame_to_tensor(clean_frame(frame2)) - frame_to_tensor(clean_frame(frame1))
 
 
 def repeat_upsample(rgb_array, k=1, l=1, err=[]):
-	# repeat kinda crashes if k/l are zero
-	if k <= 0 or l <= 0: 
-		if not err: 
-			print(f"Number of repeats must be larger than 0, k: {k}, l: {l}, returning default array!")
-			err.append('logged')
-			return rgb_array
+        # repeat kinda crashes if k/l are zero
+        if k <= 0 or l <= 0: 
+                if not err: 
+                        print(f"Number of repeats must be larger than 0, k: {k}, l: {l}, returning default array!")
+                        err.append('logged')
+                        return rgb_array
 
-	# repeat the pixels k times along the y axis and l times along the x axis
-	# if the input image is of shape (m,n,3), the output image will be of shape (k*m, l*n, 3)
-	return np.repeat(np.repeat(rgb_array, k, axis=0), l, axis=1)
+        # repeat the pixels k times along the y axis and l times along the x axis
+        # if the input image is of shape (m,n,3), the output image will be of shape (k*m, l*n, 3)
+        return np.repeat(np.repeat(rgb_array, k, axis=0), l, axis=1)
 
  
 
 def main():
-	
-	viewer = rendering.SimpleImageViewer()
-	env = gym.make('Pong-v0')
-	
-	input_dim = 80*80
-	hidden_dim = 32
-	output_dim = 1
+        
+        viewer = rendering.SimpleImageViewer()
+        env = gym.make('Pong-v0')
+        
+        input_dim = 80*80
+        hidden_dim = 32
+        output_dim = 1
 
-	model = Model()
-	
-	loss = nn.BCEWithLogitsLoss()
-	optimizer = optim.Adam(model.parameters(), lr=0.001)		
+        model = Model()
+        
+        loss = nn.BCEWithLogitsLoss()
+        optimizer = optim.Adam(model.parameters(), lr=0.001)            
 
-	epochs = 5
-	
-	for e in tqdm(range(epochs)): 
-		env.reset()
-		action=0
-		play = True
-		
-		while play:
-			rgb = env.render('rgb_array')
-			action = 2 # 2 for up, 3 for down
-			env.step(3)[0]
-			#upscaled=repeat_upsample(rgb,5, 5)
-			cleaned = clean_frame(rgb)
-			viewer.imshow(rgb)
-			observation, reward, done, info = env.step(action)
-				  
-			if done:
-				play = False
-				
-				# fit model
-				'''	
-				optimizer.zero_grad()
-	  			# forward + backward + optimize
-				outputs = net(inputs)
-				loss = criterion(outputs, labels)
-				loss.backward()
-				optimizer.step()
-				'''
+        epochs = 5
+        
+        for e in tqdm(range(epochs)): 
+                env.reset()
+                action=0
+                play = True
+                
+                while play:
+                        rgb = env.render('rgb_array')
+                        action = 2 # 2 for up, 3 for down
+                        env.step(3)[0]
+                        #upscaled=repeat_upsample(rgb,5, 5)
+                        cleaned = clean_frame(rgb)
+                        viewer.imshow(rgb)
+                        observation, reward, done, info = env.step(action)
+                                  
+                        if done:
+                                play = False
+                                
+                                # fit model
+                                '''     
+                                optimizer.zero_grad()
+                                # forward + backward + optimize
+                                outputs = net(inputs)
+                                loss = criterion(outputs, labels)
+                                loss.backward()
+                                optimizer.step()
+                                '''
 
 def select_action(state):
     global steps_done
@@ -268,78 +271,81 @@ def optimize_model():
 
 
 if __name__=='__main__':
-	env = gym.make('CartPole-v0').unwrapped
-	env.reset()
-	
-	BATCH_SIZE = 128
-	GAMMA = 0.999
-	EPS_START = 0.9
-	EPS_END = 0.05
-	EPS_DECAY = 200
-	TARGET_UPDATE = 10
+        env = gym.make('CartPole-v0').unwrapped
+        env.reset()
+        
+        BATCH_SIZE = 2e20
+        GAMMA = 0.999
+        EPS_START = 0.9
+        EPS_END = 0.05
+        EPS_DECAY = 200
+        TARGET_UPDATE = 10
 
-	# Get screen size so that we can initialize layers correctly based on shape
-	# returned from AI gym. Typical dimensions at this point are close to 3x40x90
-	# which is the result of a clamped and down-scaled render buffer in get_screen()
-	init_screen = get_screen()
-	_, _, screen_height, screen_width = init_screen.shape
+        # Get screen size so that we can initialize layers correctly based on shape
+        # returned from AI gym. Typical dimensions at this point are close to 3x40x90
+        # which is the result of a clamped and down-scaled render buffer in get_screen()
+        init_screen = get_screen()
+        _, _, screen_height, screen_width = init_screen.shape
 
-	# Get number of actions from gym action space
-	n_actions = env.action_space.n
+        # Get number of actions from gym action space
+        n_actions = env.action_space.n
 
-	policy_net = DQN(screen_height, screen_width, n_actions).to(device)
-	target_net = DQN(screen_height, screen_width, n_actions).to(device)
-	target_net.load_state_dict(policy_net.state_dict())
-	target_net.eval()
+        policy_net = DQN(screen_height, screen_width, n_actions).to(device)
+        target_net = DQN(screen_height, screen_width, n_actions).to(device)
+        target_net.load_state_dict(policy_net.state_dict())
+        target_net.eval()
 
-	optimizer = optim.RMSprop(policy_net.parameters())
-	memory = ReplayMemory(10000)
+        optimizer = optim.RMSprop(policy_net.parameters())
+        memory = ReplayMemory(10000)
 
-	steps_done = 0
+        steps_done = 0
+        
+        if len(sys.argv) > 1:
+            num_episodes = int(sys.argv[1])
+        else:
+            num_episodes = 50
 
-	num_episodes = 50
+        episode_durations = []  
 
-	episode_durations = []	
-	
-	for i_episode in range(num_episodes):
-		# Initialize the environment and state
-		env.reset()
-		last_screen = get_screen()
-		current_screen = get_screen()
-		state = current_screen - last_screen
-		for t in count():
-			# Select and perform an action
-			action = select_action(state)
-			_, reward, done, _ = env.step(action.item())
-			reward = torch.tensor([reward], device=device)
+        for i_episode in tqdm(range(num_episodes)):
+                # Initialize the environment and state
+                env.reset()
+                last_screen = get_screen()
+                current_screen = get_screen()
+                state = current_screen - last_screen
+                for t in count():
+                        # Select and perform an action
+                        action = select_action(state)
+                        _, reward, done, _ = env.step(action.item())
+                        reward = torch.tensor([reward], device=device)
 
-			# Observe new state
-			last_screen = current_screen
-			current_screen = get_screen()
-			if not done:
-				next_state = current_screen - last_screen
-			else:
-				next_state = None
+                        # Observe new state
+                        last_screen = current_screen
+                        current_screen = get_screen()
+                        if not done:
+                                next_state = current_screen - last_screen
+                        else:
+                                next_state = None
 
-			# Store the transition in memory
-			memory.push(state, action, next_state, reward)
+                        # Store the transition in memory
+                        memory.push(state, action, next_state, reward)
 
-			# Move to the next state
-			state = next_state
+                        # Move to the next state
+                        state = next_state
 
-			# Perform one step of the optimization (on the target network)
-			optimize_model()
-			if done:
-				episode_durations.append(t + 1)
-				plot_durations()
-				break
+                        # Perform one step of the optimization (on the target network)
+                        optimize_model()
+                        if done:
+                                episode_durations.append(t + 1)
+                                plot_durations()
+                                break
 
-		    # Update the target network, copying all weights and biases in DQN
-		if i_episode % TARGET_UPDATE == 0:
-			target_net.load_state_dict(policy_net.state_dict())
+                    # Update the target network, copying all weights and biases in DQN
+                if i_episode % TARGET_UPDATE == 0:
+                        target_net.load_state_dict(policy_net.state_dict())
 
-
-	print('Complete')
-	env.render()
-	env.close()
-	plt.show()
+        
+        torch.save(policy_net.state_dict(), MODEL_DIR + str(num_episodes) + '-epochs.model')
+        print('Complete')
+        env.render()
+        env.close()
