@@ -228,7 +228,9 @@ def optimize_model():
 
 
 if __name__=='__main__':
+        output_dir = 'videos/'
         env = gym.make('MountainCar-v0').unwrapped
+        env = gym.wrappers.Monitor(env, output_dir, force=True)
         env.reset()
         
         BATCH_SIZE = 2e6
@@ -301,6 +303,10 @@ if __name__=='__main__':
                                 episode_durations.append(t + 1)
                                 plot_durations()
                                 break
+                
+                # backup model every 100 rounds
+                if i_episode > 0 and (i_episode % 100) == 0:
+                    torch.save(policy_net.state_dict(), MODEL_DIR + str(i_episodes) + '-epochs.model.backup')
 
                     # Update the target network, copying all weights and biases in DQN
                 if i_episode % TARGET_UPDATE == 0:
